@@ -1,0 +1,35 @@
+services:
+  # FIREWATCH Full-Stack Application
+  firewatch-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: firewatch_app
+    ports:
+      - "8000:8000"
+    environment:
+      - FIRMS_MAP_KEY=${FIRMS_MAP_KEY:-}
+      - DATABASE_URL=postgresql://firewatch:firewatch_secret@db:5432/firewatch_db
+    volumes:
+      - firewatch_data:/app/backend/data
+    restart: unless-stopped
+    depends_on:
+      - db
+
+  # Optional PostGIS Spatial Database
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: firewatch_postgis
+    environment:
+      - POSTGRES_USER=firewatch
+      - POSTGRES_PASSWORD=firewatch_secret
+      - POSTGRES_DB=firewatch_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  firewatch_data:
+  postgis_data:
