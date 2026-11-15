@@ -1,0 +1,282 @@
+[
+  {
+    "name": "Himalayas (Mt. Everest)",
+    "type": "mountain",
+    "lat": 27.9881,
+    "lon": 86.925,
+    "elevation": "8,848 m"
+  },
+  {
+    "name": "Andes (Aconcagua)",
+    "type": "mountain",
+    "lat": -32.6532,
+    "lon": -70.0109,
+    "elevation": "6,961 m"
+  },
+  {
+    "name": "Rocky Mountains",
+    "type": "mountain",
+    "lat": 44.428,
+    "lon": -110.5885,
+    "elevation": "4,401 m"
+  },
+  {
+    "name": "Alps (Mont Blanc)",
+    "type": "mountain",
+    "lat": 45.8326,
+    "lon": 6.8652,
+    "elevation": "4,808 m"
+  },
+  {
+    "name": "Mount Kilimanjaro",
+    "type": "mountain",
+    "lat": -3.0674,
+    "lon": 37.3556,
+    "elevation": "5,895 m"
+  },
+  {
+    "name": "Tibetan Plateau",
+    "type": "plateau",
+    "lat": 33.0,
+    "lon": 88.0,
+    "elevation": "4,500 m"
+  },
+  {
+    "name": "Amazon Basin",
+    "type": "feature",
+    "lat": -3.4653,
+    "lon": -62.2159,
+    "elevation": "Lowland"
+  },
+  {
+    "name": "Sahara Desert",
+    "type": "feature",
+    "lat": 23.4162,
+    "lon": 25.6628,
+    "elevation": "Desert"
+  },
+  {
+    "name": "Great Rift Valley",
+    "type": "feature",
+    "lat": 0.5,
+    "lon": 36.0,
+    "elevation": "Rift"
+  },
+  {
+    "name": "Great Dividing Range",
+    "type": "mountain",
+    "lat": -36.4559,
+    "lon": 148.2636,
+    "elevation": "2,228 m"
+  },
+  {
+    "name": "New Delhi",
+    "country": "India",
+    "type": "city",
+    "lat": 28.6139,
+    "lon": 77.209
+  },
+  {
+    "name": "Washington, D.C.",
+    "country": "United States",
+    "type": "city",
+    "lat": 38.9072,
+    "lon": -77.0369
+  },
+  {
+    "name": "London",
+    "country": "United Kingdom",
+    "type": "city",
+    "lat": 51.5074,
+    "lon": -0.1278
+  },
+  {
+    "name": "Tokyo",
+    "country": "Japan",
+    "type": "city",
+    "lat": 35.6762,
+    "lon": 139.6503
+  },
+  {
+    "name": "Beijing",
+    "country": "China",
+    "type": "city",
+    "lat": 39.9042,
+    "lon": 116.4074
+  },
+  {
+    "name": "Paris",
+    "country": "France",
+    "type": "city",
+    "lat": 48.8566,
+    "lon": 2.3522
+  },
+  {
+    "name": "Bras\u00edlia",
+    "country": "Brazil",
+    "type": "city",
+    "lat": -15.7975,
+    "lon": -47.8919
+  },
+  {
+    "name": "Canberra",
+    "country": "Australia",
+    "type": "city",
+    "lat": -35.2809,
+    "lon": 149.13
+  },
+  {
+    "name": "Cairo",
+    "country": "Egypt",
+    "type": "city",
+    "lat": 30.0444,
+    "lon": 31.2357
+  },
+  {
+    "name": "Nairobi",
+    "country": "Kenya",
+    "type": "city",
+    "lat": -1.2921,
+    "lon": 36.8219
+  },
+  {
+    "name": "Pretoria",
+    "country": "South Africa",
+    "type": "city",
+    "lat": -25.7479,
+    "lon": 28.2293
+  },
+  {
+    "name": "Ottawa",
+    "country": "Canada",
+    "type": "city",
+    "lat": 45.4215,
+    "lon": -75.6972
+  },
+  {
+    "name": "Jakarta",
+    "country": "Indonesia",
+    "type": "city",
+    "lat": -6.2088,
+    "lon": 106.8456
+  },
+  {
+    "name": "Moscow",
+    "country": "Russia",
+    "type": "city",
+    "lat": 55.7558,
+    "lon": 37.6173
+  },
+  {
+    "name": "Berlin",
+    "country": "Germany",
+    "type": "city",
+    "lat": 52.52,
+    "lon": 13.405
+  },
+  {
+    "name": "Rome",
+    "country": "Italy",
+    "type": "city",
+    "lat": 41.9028,
+    "lon": 12.4964
+  },
+  {
+    "name": "Madrid",
+    "country": "Spain",
+    "type": "city",
+    "lat": 40.4168,
+    "lon": -3.7038
+  },
+  {
+    "name": "Buenos Aires",
+    "country": "Argentina",
+    "type": "city",
+    "lat": -34.6037,
+    "lon": -58.3816
+  },
+  {
+    "name": "Mexico City",
+    "country": "Mexico",
+    "type": "city",
+    "lat": 19.4326,
+    "lon": -99.1332
+  },
+  {
+    "name": "Seoul",
+    "country": "South Korea",
+    "type": "city",
+    "lat": 37.5665,
+    "lon": 126.978
+  },
+  {
+    "name": "Singapore",
+    "country": "Singapore",
+    "type": "city",
+    "lat": 1.3521,
+    "lon": 103.8198
+  },
+  {
+    "name": "Riyadh",
+    "country": "Saudi Arabia",
+    "type": "city",
+    "lat": 24.7136,
+    "lon": 46.6753
+  },
+  {
+    "name": "Bangkok",
+    "country": "Thailand",
+    "type": "city",
+    "lat": 13.7563,
+    "lon": 100.5018
+  },
+  {
+    "name": "Dubai",
+    "country": "UAE",
+    "type": "city",
+    "lat": 25.2048,
+    "lon": 55.2708
+  },
+  {
+    "name": "Athens",
+    "country": "Greece",
+    "type": "city",
+    "lat": 37.9838,
+    "lon": 23.7275
+  },
+  {
+    "name": "Stockholm",
+    "country": "Sweden",
+    "type": "city",
+    "lat": 59.3293,
+    "lon": 18.0686
+  },
+  {
+    "name": "Wellington",
+    "country": "New Zealand",
+    "type": "city",
+    "lat": -41.2865,
+    "lon": 174.7762
+  },
+  {
+    "name": "Santiago",
+    "country": "Chile",
+    "type": "city",
+    "lat": -33.4489,
+    "lon": -70.6693
+  },
+  {
+    "name": "Bogot\u00e1",
+    "country": "Colombia",
+    "type": "city",
+    "lat": 4.711,
+    "lon": -74.0721
+  },
+  {
+    "name": "Lagos",
+    "country": "Nigeria",
+    "type": "city",
+    "lat": 6.5244,
+    "lon": 3.3792
+  }
+]

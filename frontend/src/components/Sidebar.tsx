@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard,
   MapPin,
+  Globe,
   Calendar,
   TrendingUp,
   Crop,
@@ -15,6 +16,7 @@ import {
 export type TabType =
   | 'overview'
   | 'map'
+  | 'earth3d'
   | 'calendar'
   | 'analytics'
   | 'aoi'
@@ -33,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
   const navItems = [
     { id: 'overview' as TabType, label: 'Overview Dashboard', icon: LayoutDashboard },
     { id: 'map' as TabType, label: 'Live Fire Map', icon: MapPin },
+    { id: 'earth3d' as TabType, label: '3D Earth Explorer 🌍', icon: Globe, highlight: true },
     { id: 'calendar' as TabType, label: 'Burning Calendar', icon: Calendar, highlight: true },
     { id: 'analytics' as TabType, label: 'Historical Analytics', icon: TrendingUp },
     { id: 'aoi' as TabType, label: 'AOI Analysis', icon: Crop },

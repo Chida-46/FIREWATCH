@@ -3,6 +3,7 @@ import { Navbar } from './components/Navbar';
 import { Sidebar, TabType } from './components/Sidebar';
 import { OverviewDashboard } from './pages/OverviewDashboard';
 import { LiveFireMap } from './pages/LiveFireMap';
+import { Earth3DPage } from './pages/Earth3DPage';
 import { BurningCalendarPage } from './pages/BurningCalendarPage';
 import { HistoricalAnalyticsPage } from './pages/HistoricalAnalyticsPage';
 import { AOIAnalysisPage } from './pages/AOIAnalysisPage';
@@ -39,6 +40,15 @@ export function App() {
             currentRegion={currentRegion}
             currentSubdivision={currentSubdivision}
             onSelectRegion={handleSelectRegion}
+          />
+        );
+      case 'earth3d':
+        return (
+          <Earth3DPage
+            currentRegion={currentRegion}
+            currentSubdivision={currentSubdivision}
+            onSelectRegion={handleSelectRegion}
+            onNavigateToTab={setCurrentTab}
           />
         );
       case 'calendar':
