@@ -23,7 +23,9 @@ import {
   Mountain,
   Moon,
   MapPin,
-  Search
+  Search,
+  Check,
+  Loader2
 } from 'lucide-react';
 
 interface Earth3DGlobeProps {
@@ -74,6 +76,152 @@ export const NAVIGATION_PRESETS = [
   { id: 'india', label: 'India', icon: '🇮🇳', lat: 20.5, lon: 78.9 },
 ];
 
+export interface SatelliteProvider {
+  id: string;
+  name: string;
+  shortName: string;
+  icon: string;
+  attribution: string;
+  maxZoom: number;
+  minZoom: number;
+  getUrl: (z: number, x: number, y: number) => string;
+}
+
+export const SATELLITE_PROVIDERS: Record<string, SatelliteProvider> = {
+  esri_satellite: {
+    id: 'esri_satellite',
+    name: 'Ultra-HD Satellite (Esri World Imagery)',
+    shortName: 'Ultra-HD Sat',
+    icon: '🛰️',
+    attribution: 'Esri, Maxar, Earthstar Geographics, CNES/Airbus DS',
+    maxZoom: 18,
+    minZoom: 1,
+    getUrl: (z, x, y) => `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`
+  },
+  nasa_bluemarble: {
+    id: 'nasa_bluemarble',
+    name: 'NASA Blue Marble (Relief & Bathymetry)',
+    shortName: 'NASA Marble',
+    icon: '🌍',
+    attribution: 'NASA Earth Observatory / GIBS',
+    maxZoom: 8,
+    minZoom: 1,
+    getUrl: (z, x, y) => `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/default/GoogleMapsCompatible_Level8/${z}/${y}/${x}.jpeg`
+  },
+  nasa_modis: {
+    id: 'nasa_modis',
+    name: 'NASA MODIS TrueColor (Terra Daily)',
+    shortName: 'NASA MODIS',
+    icon: '🌐',
+    attribution: 'NASA EOSDIS GIBS (Terra)',
+    maxZoom: 9,
+    minZoom: 1,
+    getUrl: (z, x, y) => `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-05-01/GoogleMapsCompatible_Level9/${z}/${y}/${x}.jpg`
+  },
+  osm_topo: {
+    id: 'osm_topo',
+    name: 'Topographic Terrain & Contours',
+    shortName: 'Topo Terrain',
+    icon: '🏔️',
+    attribution: 'OpenTopoMap / OpenStreetMap contributors',
+    maxZoom: 15,
+    minZoom: 1,
+    getUrl: (z, x, y) => `https://tile.opentopomap.org/${z}/${x}/${y}.png`
+  }
+};
+
+interface TileEntry {
+  mesh: THREE.Mesh;
+  texture: THREE.Texture;
+  geometry: THREE.BufferGeometry;
+  material: THREE.MeshStandardMaterial;
+  zoom: number;
+  key: string;
+  providerId: string;
+  lastUsed: number;
+}
+
+/**
+ * Generate a curved spherical patch geometry for Web Mercator tile (z, x, y).
+ * Uses exact inverse Web Mercator latitude projection so texture maps without stretching.
+ */
+function createTileGeometry(z: number, x: number, y: number, radius: number, segs = 12): THREE.BufferGeometry {
+  const n = Math.pow(2, z);
+  const lonMin = (x / n) * 360.0 - 180.0;
+  const lonMax = ((x + 1) / n) * 360.0 - 180.0;
+
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+
+  for (let j = 0; j <= segs; j++) {
+    const v = j / segs;
+    const yMerc = y + v;
+    // Standard Web Mercator inverse projection to latitude
+    const latRad = Math.atan(Math.sinh(Math.PI * (1.0 - (2.0 * yMerc) / n)));
+
+    for (let i = 0; i <= segs; i++) {
+      const u = i / segs;
+      const lon = lonMin + u * (lonMax - lonMin);
+      const lonRad = (lon * Math.PI) / 180.0;
+
+      const x3d = radius * Math.cos(latRad) * Math.sin(lonRad);
+      const y3d = radius * Math.sin(latRad);
+      const z3d = radius * Math.cos(latRad) * Math.cos(lonRad);
+
+      positions.push(x3d, y3d, z3d);
+      uvs.push(u, 1.0 - v);
+    }
+  }
+
+  for (let j = 0; j < segs; j++) {
+    for (let i = 0; i < segs; i++) {
+      const v1 = j * (segs + 1) + i;
+      const v2 = j * (segs + 1) + (i + 1);
+      const v3 = (j + 1) * (segs + 1) + i;
+      const v4 = (j + 1) * (segs + 1) + (i + 1);
+      indices.push(v1, v3, v2, v2, v3, v4);
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/**
+ * Maps camera altitude and current zoom to descriptive multi-level LOD information.
+ */
+function getLODInfo(altitude: number, activeZoom: number) {
+  let level = 1;
+  let label = 'LOD 1 · Global Earth (NASA Blue Marble)';
+
+  if (altitude > 7.5) {
+    level = 1;
+    label = 'LOD 1 · Global View (Base 2K)';
+  } else if (altitude > 4.2) {
+    level = 2;
+    label = `LOD 2 · Continental (Level ${activeZoom})`;
+  } else if (altitude > 2.2) {
+    level = 3;
+    label = `LOD 3 · Country (Level ${activeZoom})`;
+  } else if (altitude > 1.0) {
+    level = 4;
+    label = `LOD 4 · Regional Terrain (Level ${activeZoom})`;
+  } else if (altitude > 0.4) {
+    level = 5;
+    label = `LOD 5 · Local Detail (Level ${activeZoom})`;
+  } else {
+    level = 5;
+    label = `LOD 5+ · Ultra-HD Surface (Level ${activeZoom})`;
+  }
+
+  return { level, label };
+}
+
 export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
   hotspots,
   boundaryGeoJSON,
@@ -100,6 +248,24 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
   const [terrainExaggeration, setTerrainExaggeration] = useState<number>(1.5); // 0x (Flat), 1x (Natural), 2x (3D Mountain), 3x (Peak)
   const [showNightLights, setShowNightLights] = useState<boolean>(true);
   const [showLandmarks, setShowLandmarks] = useState<boolean>(true);
+
+  // Ultra-High-Resolution Multi-Level Tiled Satellite Imagery States
+  const [showUltraHDTiles, setShowUltraHDTiles] = useState<boolean>(true);
+  const [selectedProvider, setSelectedProvider] = useState<string>('esri_satellite');
+  const [showProviderMenu, setShowProviderMenu] = useState<boolean>(false);
+  const [currentLODInfo, setCurrentLODInfo] = useState<{
+    lodLevel: number;
+    lodLabel: string;
+    zoom: number;
+    activeCount: number;
+    loadingCount: number;
+  }>({
+    lodLevel: 1,
+    lodLabel: 'LOD 1 · Global Earth (NASA Blue Marble)',
+    zoom: 1,
+    activeCount: 0,
+    loadingCount: 0
+  });
 
   const [activePreset, setActivePreset] = useState<string>('default');
   const [webGLError, setWebGLError] = useState<string | null>(null);
@@ -190,6 +356,25 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
   const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
   const bordersGroupRef = useRef<THREE.Group | null>(null);
   const beaconMeshRef = useRef<THREE.Mesh | null>(null);
+  const tilesGroupRef = useRef<THREE.Group | null>(null);
+
+  // Ultra-High Resolution Satellite Tile Caching & Management Refs
+  const showUltraHDTilesRef = useRef<boolean>(true);
+  const selectedProviderRef = useRef<string>('esri_satellite');
+  const tileMeshCacheRef = useRef<Map<string, TileEntry>>(new Map());
+  const pendingTilesRef = useRef<Set<string>>(new Set());
+  const textureLoaderRef = useRef<THREE.TextureLoader | null>(null);
+  const normalTextureRef = useRef<THREE.Texture | null>(null);
+  const bumpTextureRef = useRef<THREE.Texture | null>(null);
+  const terrainExaggerationRef = useRef<number>(1.5);
+  const lastTileUpdateTimeRef = useRef<number>(0);
+  const currentLODInfoRef = useRef({
+    lodLevel: 1,
+    lodLabel: 'LOD 1 · Global Earth (NASA Blue Marble)',
+    zoom: 1,
+    activeCount: 0,
+    loadingCount: 0
+  });
 
   // Direct 3-Axis Virtual Trackball Drag & Inertia Tracking
   const isPointerDownRef = useRef<boolean>(false);
@@ -251,6 +436,259 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
     velocityRef.current = { x: 0, y: 0 };
   }, []);
 
+  // LRU cleanup to prune oldest invisible tile meshes when cache exceeds 100 entries
+  const cleanOldTiles = useCallback(() => {
+    if (tileMeshCacheRef.current.size <= 100) return;
+    const entries = Array.from(tileMeshCacheRef.current.values())
+      .filter((e) => !e.mesh.visible)
+      .sort((a, b) => a.lastUsed - b.lastUsed);
+
+    const toEvict = entries.slice(0, 20);
+    for (const item of toEvict) {
+      if (tilesGroupRef.current) {
+        tilesGroupRef.current.remove(item.mesh);
+      }
+      item.geometry.dispose();
+      item.texture.dispose();
+      item.material.dispose();
+      tileMeshCacheRef.current.delete(item.key);
+    }
+  }, []);
+
+  // Asynchronously load single satellite tile with texture caching and mipmapping
+  const loadTile = useCallback((z: number, x: number, y: number, provider: SatelliteProvider) => {
+    const key = `${provider.id}_${z}_${x}_${y}`;
+    if (pendingTilesRef.current.has(key)) return;
+    pendingTilesRef.current.add(key);
+
+    const url = provider.getUrl(z, x, y);
+
+    if (!textureLoaderRef.current) {
+      textureLoaderRef.current = new THREE.TextureLoader();
+      textureLoaderRef.current.setCrossOrigin('anonymous');
+    }
+
+    textureLoaderRef.current.load(
+      url,
+      (texture) => {
+        pendingTilesRef.current.delete(key);
+        if (!tilesGroupRef.current || !rendererRef.current) return;
+
+        texture.colorSpace = THREE.SRGBColorSpace;
+        try {
+          const maxAniso = rendererRef.current.capabilities.getMaxAnisotropy();
+          texture.anisotropy = Math.min(16, maxAniso);
+        } catch {}
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = true;
+        texture.needsUpdate = true;
+
+        // Curved spherical patch geometry placed at GLOBE_RADIUS + 0.003
+        const geometry = createTileGeometry(z, x, y, GLOBE_RADIUS + 0.003, 12);
+
+        const material = new THREE.MeshStandardMaterial({
+          map: texture,
+          roughness: 0.78,
+          metalness: 0.05,
+          normalMap: normalTextureRef.current || undefined,
+          normalScale: new THREE.Vector2(0.85 * terrainExaggerationRef.current, 0.85 * terrainExaggerationRef.current),
+          bumpMap: bumpTextureRef.current || undefined,
+          bumpScale: 0.08 * terrainExaggerationRef.current,
+          depthWrite: true,
+          depthTest: true,
+          transparent: true,
+          opacity: 1.0
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.visible = showUltraHDTilesRef.current && selectedProviderRef.current === provider.id;
+        tilesGroupRef.current.add(mesh);
+
+        tileMeshCacheRef.current.set(key, {
+          mesh,
+          texture,
+          geometry,
+          material,
+          zoom: z,
+          key,
+          providerId: provider.id,
+          lastUsed: Date.now()
+        });
+
+        cleanOldTiles();
+      },
+      undefined,
+      () => {
+        pendingTilesRef.current.delete(key);
+        // Resilient fallback: base Earth texture is always rendering underneath without black holes
+      }
+    );
+  }, [cleanOldTiles, GLOBE_RADIUS]);
+
+  // Compute camera viewpoint, altitude, and load visible multi-level LOD tiles
+  const updateTiles = useCallback(() => {
+    if (!showUltraHDTilesRef.current) {
+      if (tilesGroupRef.current && tilesGroupRef.current.visible) {
+        tilesGroupRef.current.visible = false;
+      }
+      return;
+    }
+    if (tilesGroupRef.current && !tilesGroupRef.current.visible) {
+      tilesGroupRef.current.visible = true;
+    }
+
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    const globe = globeGroupRef.current;
+    const tilesGroup = tilesGroupRef.current;
+    if (!camera || !controls || !globe || !tilesGroup) return;
+
+    const camPos = camera.position;
+    const target = controls.target;
+    const dist = camPos.distanceTo(target);
+    const altitude = Math.max(0.01, dist - GLOBE_RADIUS);
+
+    // Multi-level detail (LOD) zoom mapping
+    let targetZoom = 1;
+    if (altitude > 7.5) {
+      targetZoom = 1; // Global Earth (Base 2K)
+    } else if (altitude > 4.2) {
+      targetZoom = 2; // Continental
+    } else if (altitude > 2.2) {
+      targetZoom = 4; // Country
+    } else if (altitude > 1.0) {
+      targetZoom = 6; // Regional
+    } else if (altitude > 0.4) {
+      targetZoom = 8; // High-detail local
+    } else if (altitude > 0.18) {
+      targetZoom = 10; // Ultra-HD local surface
+    } else {
+      targetZoom = 12; // Maximum satellite zoom
+    }
+
+    const provider = SATELLITE_PROVIDERS[selectedProviderRef.current] || SATELLITE_PROVIDERS.esri_satellite;
+    const activeZoom = Math.min(targetZoom, provider.maxZoom);
+
+    // Sub-camera point on globe surface
+    const vCam = camPos.clone().sub(target).normalize();
+    const qInv = globe.quaternion.clone().invert();
+    const pLocal = vCam.clone().applyQuaternion(qInv).normalize();
+
+    const latRad = Math.asin(Math.max(-1, Math.min(1, pLocal.y)));
+    const lonRad = Math.atan2(pLocal.x, pLocal.z);
+    const centerLat = (latRad * 180) / Math.PI;
+    const centerLon = (lonRad * 180) / Math.PI;
+
+    const n = Math.pow(2, activeZoom);
+    const centerTileX = Math.floor(((centerLon + 180) / 360) * n);
+    const clampedLat = Math.max(-85.0511, Math.min(85.0511, centerLat));
+    const cLatRad = (clampedLat * Math.PI) / 180;
+    const centerTileY = Math.floor(
+      ((1 - Math.log(Math.tan(cLatRad) + 1 / Math.cos(cLatRad)) / Math.PI) / 2) * n
+    );
+
+    const span = activeZoom <= 1 ? 1 : 2;
+    const neededKeys = new Set<string>();
+    const tilesToLoad: { z: number; x: number; y: number; key: string; dot: number }[] = [];
+
+    for (let dy = -span; dy <= span; dy++) {
+      for (let dx = -span; dx <= span; dx++) {
+        const tx = ((centerTileX + dx) % n + n) % n;
+        const ty = centerTileY + dy;
+        if (ty < 0 || ty >= n) continue;
+
+        const key = `${provider.id}_${activeZoom}_${tx}_${ty}`;
+        neededKeys.add(key);
+
+        const tileMidLon = ((tx + 0.5) / n) * 360 - 180;
+        const yMerc = ty + 0.5;
+        const tLatRad = Math.atan(Math.sinh(Math.PI * (1 - (2 * yMerc) / n)));
+        const tLat = (tLatRad * 180) / Math.PI;
+
+        const pTileLocal = latLonToVector3(tLat, tileMidLon, 1.0).normalize();
+        const pTileWorld = pTileLocal.clone().applyQuaternion(globe.quaternion);
+        const dot = pTileWorld.dot(vCam);
+
+        if (dot >= -0.15) {
+          tilesToLoad.push({ z: activeZoom, x: tx, y: ty, key, dot });
+        }
+      }
+    }
+
+    // Prioritize tiles closest to camera center
+    tilesToLoad.sort((a, b) => b.dot - a.dot);
+
+    // Update active visibility in cache
+    let activeVisibleCount = 0;
+    for (const [key, entry] of tileMeshCacheRef.current.entries()) {
+      if (entry.providerId === provider.id && neededKeys.has(key)) {
+        entry.mesh.visible = true;
+        entry.lastUsed = Date.now();
+        activeVisibleCount++;
+      } else {
+        entry.mesh.visible = false;
+      }
+    }
+
+    // Load missing tiles in priority order
+    for (const tile of tilesToLoad) {
+      if (!tileMeshCacheRef.current.has(tile.key)) {
+        loadTile(tile.z, tile.x, tile.y, provider);
+      }
+    }
+
+    // Update UI LOD info (throttled to avoid state churn)
+    const lod = getLODInfo(altitude, activeZoom);
+    if (
+      currentLODInfoRef.current.zoom !== activeZoom ||
+      currentLODInfoRef.current.activeCount !== activeVisibleCount ||
+      currentLODInfoRef.current.loadingCount !== pendingTilesRef.current.size
+    ) {
+      const updated = {
+        lodLevel: lod.level,
+        lodLabel: lod.label,
+        zoom: activeZoom,
+        activeCount: activeVisibleCount,
+        loadingCount: pendingTilesRef.current.size
+      };
+      currentLODInfoRef.current = updated;
+      setCurrentLODInfo(updated);
+    }
+  }, [loadTile, GLOBE_RADIUS]);
+
+  // Handle Switching Satellite Imagery Providers
+  const handleSelectProvider = useCallback((provId: string) => {
+    setSelectedProvider(provId);
+    selectedProviderRef.current = provId;
+    setShowProviderMenu(false);
+
+    for (const entry of tileMeshCacheRef.current.values()) {
+      if (entry.providerId !== provId) {
+        entry.mesh.visible = false;
+      }
+    }
+    pendingTilesRef.current.clear();
+    lastTileUpdateTimeRef.current = 0;
+    updateTiles();
+  }, [updateTiles]);
+
+  // Toggle HD Tiles Layer
+  const toggleUltraHDTiles = useCallback(() => {
+    setShowUltraHDTiles((prev) => {
+      const next = !prev;
+      showUltraHDTilesRef.current = next;
+      if (tilesGroupRef.current) {
+        tilesGroupRef.current.visible = next;
+      }
+      if (next) {
+        lastTileUpdateTimeRef.current = 0;
+        updateTiles();
+      }
+      return next;
+    });
+  }, [updateTiles]);
+
   // Initialize Three.js Scene
   useEffect(() => {
     const container = mountRef.current;
@@ -278,7 +716,7 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
     sceneRef.current = scene;
 
     // Camera
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.05, 1000);
     camera.position.set(0, 2.5, 14);
     cameraRef.current = camera;
 
@@ -298,7 +736,7 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
     controls.enableRotate = false; // Left drag is handled by natural virtual trackball on the globe
     controls.enableZoom = true;    // Wheel and pinch zooming
     controls.enablePan = true;     // Right-click and middle-click panning
-    controls.minDistance = 5.25;   // Close zoom to inspect hotspots directly on surface
+    controls.minDistance = 5.08;   // Ultra-close zoom to inspect surface features and high-resolution tiles directly
     controls.maxDistance = 35.0;
     controls.zoomSpeed = 1.1;
     controls.panSpeed = 0.8;
@@ -358,12 +796,17 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
 
     // Texture Loader - Photorealistic NASA Blue Marble, Topography & Night Lights
     const textureLoader = new THREE.TextureLoader();
+    textureLoader.setCrossOrigin('anonymous');
+    textureLoaderRef.current = textureLoader;
     const dayTexture = textureLoader.load('/textures/earth_atmos_2048.jpg');
     const normalTexture = textureLoader.load('/textures/earth_normal_2048.jpg');
     const bumpTexture = textureLoader.load('/textures/earth_bump_2048.jpg');
     const specularTexture = textureLoader.load('/textures/earth_specular_2048.jpg');
     const lightsTexture = textureLoader.load('/textures/earth_lights_2048.png');
     const cloudsTexture = textureLoader.load('/textures/earth_clouds.png');
+
+    normalTextureRef.current = normalTexture;
+    bumpTextureRef.current = bumpTexture;
 
     dayTexture.colorSpace = THREE.SRGBColorSpace;
     lightsTexture.colorSpace = THREE.SRGBColorSpace;
@@ -389,6 +832,11 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
     const earthMesh = new THREE.Mesh(earthGeo, earthMat);
     globeGroup.add(earthMesh);
     earthMeshRef.current = earthMesh;
+
+    // Group for Multi-Level High-Resolution Satellite Tile Patches
+    const tilesGroup = new THREE.Group();
+    globeGroup.add(tilesGroup);
+    tilesGroupRef.current = tilesGroup;
 
     // Dynamic Cloud Layer: Smooth differential drift with realistic transparency
     const cloudsGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.008, 128, 128);
@@ -530,6 +978,13 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
         beaconMeshRef.current.scale.set(scale, scale, scale);
       }
 
+      // 4. Multi-Level LOD Satellite Imagery Tile Update (throttled ~200ms)
+      const now = performance.now();
+      if (now - lastTileUpdateTimeRef.current > 200) {
+        lastTileUpdateTimeRef.current = now;
+        updateTiles();
+      }
+
       controls.update();
       renderer.render(scene, camera);
     };
@@ -543,6 +998,16 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
       }
       renderer.dispose();
       scene.clear();
+
+      // Dispose all cached satellite tile geometries, textures and materials
+      for (const item of tileMeshCacheRef.current.values()) {
+        item.geometry.dispose();
+        item.texture.dispose();
+        item.material.dispose();
+      }
+      tileMeshCacheRef.current.clear();
+      pendingTilesRef.current.clear();
+
       setSceneReady(false);
     };
   }, []); // Mounted ONCE - Never torn down by autoRotate, layer toggles, or filter changes!
@@ -562,12 +1027,21 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
 
   // Update Terrain Relief Elevation Exaggeration in Real-time
   useEffect(() => {
+    terrainExaggerationRef.current = terrainExaggeration;
     if (earthMeshRef.current) {
       const mat = earthMeshRef.current.material as THREE.MeshStandardMaterial;
       if (mat) {
         mat.bumpScale = 0.08 * terrainExaggeration;
         mat.normalScale.set(0.85 * terrainExaggeration, 0.85 * terrainExaggeration);
         mat.needsUpdate = true;
+      }
+    }
+    // Synchronize 3D mountain relief across all loaded satellite tiles
+    for (const item of tileMeshCacheRef.current.values()) {
+      if (item.material) {
+        item.material.bumpScale = 0.08 * terrainExaggeration;
+        item.material.normalScale.set(0.85 * terrainExaggeration, 0.85 * terrainExaggeration);
+        item.material.needsUpdate = true;
       }
     }
   }, [terrainExaggeration]);
@@ -722,13 +1196,26 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
       .catch((e) => console.warn('Could not load landmarks:', e));
   }, [showLandmarks, sceneReady]);
 
-  // Smoothly orient globe to target Lat/Lon when country changes
+  // Smoothly orient globe to target Lat/Lon when country or landmark changes
   useEffect(() => {
     if (!targetLatLon) return;
     const key = `${targetLatLon[0].toFixed(2)}_${targetLatLon[1].toFixed(2)}`;
     if (lastTargetLatLonRef.current === key) return;
     lastTargetLatLonRef.current = key;
     flyToLatLon(targetLatLon[0], targetLatLon[1]);
+
+    // Smoothly zoom closer to regional scale to reveal high-resolution satellite tiles
+    if (cameraRef.current && controlsRef.current) {
+      const cam = cameraRef.current;
+      const target = controlsRef.current.target;
+      const currentDist = cam.position.distanceTo(target);
+      if (currentDist > 10.0) {
+        const dir = cam.position.clone().sub(target).normalize();
+        cam.position.copy(target).addScaledVector(dir, 7.8);
+        controlsRef.current.update();
+        lastTileUpdateTimeRef.current = 0;
+      }
+    }
   }, [targetLatLon, flyToLatLon]);
 
   // RENDER REAL NASA FIRMS HOTSPOTS ON 3D GLOBE
@@ -1120,6 +1607,80 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
             <span>VIIRS ({viirsCount.toLocaleString()})</span>
           </button>
 
+          {/* Multi-Level High-Resolution Satellite Tiles Layer Toggle */}
+          <button
+            onClick={toggleUltraHDTiles}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border flex items-center space-x-1 transition-all shadow-sm ${
+              showUltraHDTiles
+                ? 'bg-blue-600/30 text-blue-300 border-blue-500/60 hover:bg-blue-600/40'
+                : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+            }`}
+            title="Toggle Ultra-High-Resolution Multi-Level Satellite Imagery Tiles"
+          >
+            <Satellite className="w-3.5 h-3.5 text-blue-400" />
+            <span>{showUltraHDTiles ? 'HD Tiles ON' : 'HD Tiles OFF'}</span>
+          </button>
+
+          {/* Satellite Imagery Provider Selector Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowProviderMenu((prev) => !prev)}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 flex items-center space-x-1.5 transition-all shadow-sm"
+              title="Switch High-Resolution Satellite Imagery Layer"
+            >
+              <span>{SATELLITE_PROVIDERS[selectedProvider]?.icon || '🛰️'}</span>
+              <span>{SATELLITE_PROVIDERS[selectedProvider]?.shortName || 'Satellite'}</span>
+              <Layers className="w-3 h-3 text-slate-400 ml-0.5" />
+            </button>
+
+            {showProviderMenu && (
+              <div className="absolute top-full left-0 mt-1.5 w-64 bg-slate-900/98 backdrop-blur-xl border border-slate-700 rounded-xl shadow-2xl p-1.5 z-50 space-y-1">
+                <div className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1 tracking-wider border-b border-slate-800">
+                  Select Satellite Imagery Layer
+                </div>
+                {Object.values(SATELLITE_PROVIDERS).map((p) => {
+                  const isSel = p.id === selectedProvider;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => handleSelectProvider(p.id)}
+                      className={`w-full text-left px-2 py-1.5 rounded-lg text-xs flex items-center justify-between transition-colors ${
+                        isSel
+                          ? 'bg-orange-600/30 text-orange-200 font-semibold border border-orange-500/50'
+                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 truncate">
+                        <span>{p.icon}</span>
+                        <div className="truncate">
+                          <div className="truncate font-medium">{p.name}</div>
+                          <div className="text-[9px] text-slate-400 truncate">{p.attribution}</div>
+                        </div>
+                      </div>
+                      {isSel && <Check className="w-3.5 h-3.5 text-orange-400 shrink-0 ml-1" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Dynamic Multi-Level LOD Resolution Badge */}
+          {showUltraHDTiles && (
+            <div className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1 bg-slate-950/80 border border-slate-700/60 rounded-lg text-[11px] font-mono text-sky-300 shadow-inner">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="truncate max-w-[210px]">{currentLODInfo.lodLabel}</span>
+              <span className="text-slate-600">•</span>
+              <span className="text-slate-400 shrink-0">{currentLODInfo.activeCount} tiles</span>
+              {currentLODInfo.loadingCount > 0 && (
+                <span className="flex items-center text-amber-400 font-medium shrink-0">
+                  <Loader2 className="w-3 h-3 animate-spin ml-1 mr-0.5" />
+                  {currentLODInfo.loadingCount} load
+                </span>
+              )}
+            </div>
+          )}
+
           {/* 3D Terrain Elevation Relief Toggle */}
           <button
             onClick={cycleTerrainExaggeration}
@@ -1315,11 +1876,9 @@ export const Earth3DGlobe: React.FC<Earth3DGlobeProps> = ({
         </div>
 
         <div className="hidden lg:flex items-center space-x-3 text-[10px] text-slate-400">
-          <span><strong className="text-slate-200">Left Drag:</strong> Free 360° Rotate</span>
+          <span><strong className="text-slate-200">Tiles:</strong> {SATELLITE_PROVIDERS[selectedProvider]?.attribution}</span>
           <span>•</span>
-          <span><strong className="text-slate-200">Right Drag:</strong> Pan View</span>
-          <span>•</span>
-          <span><strong className="text-slate-200">Scroll:</strong> Zoom</span>
+          <span><strong className="text-slate-200">Scroll:</strong> Zoom (LOD 1–5+)</span>
           <span>•</span>
           <span><strong className="text-slate-200">Double-Click:</strong> Focus & Zoom</span>
           <span>•</span>
