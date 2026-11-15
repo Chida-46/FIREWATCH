@@ -1,32 +1,49 @@
-# React + TypeScript + Vite
+# FIREWATCH — Frontend Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Interactive geospatial fire intelligence application built with **React 19**, **TypeScript**, **Vite**, **Tailwind CSS**, **Three.js**, and **Leaflet**.
 
-Currently, two official plugins are available:
+- **Live Production URL:** [https://firewatch-1.vercel.app/](https://firewatch-1.vercel.app/)
+- **GitHub Repository:** [https://github.com/Chida-46/FIREWATCH](https://github.com/Chida-46/FIREWATCH)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **3D Earth Explorer (Three.js WebGL):**
+  - Photorealistic 3D Earth globe with NASA Blue Marble, topography normal & bump maps, city night lights, and atmospheric limb scattering.
+  - Multi-Level Detail (LOD 1–5+) satellite tile pyramid: Esri Ultra-HD Satellite, NASA Blue Marble, NASA MODIS TrueColor, and Topographic Terrain.
+  - Full 360° 3-axis trackball rotation with momentum, smooth zoom, and automatic polar rotation.
+  - Planetary autocomplete search bar for 240+ countries and 40 world landmarks.
+  - Synchronized MODIS and VIIRS fire hotspot pins, telemetry inspection, and stop/resume spin controls.
+- **2D Geospatial Map (Leaflet):**
+  - High-resolution Esri World Imagery satellite basemap, dynamic hotspot clustering, and 0.1° harmonized spatial polygon grid overlays.
+- **Burning Calendar Matrix:**
+  - Multi-decadal Year × Month matrix (2003–2024) revealing annual burning rhythms, peak months, and historical anomalies.
+- **Analytics & Harmonization:**
+  - Climatology curves, seasonal baseline bands, linear trend projections, and cross-sensor regression diagnostics.
 
-## Expanding the Oxlint configuration
+---
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## Development
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+# Install dependencies
+npm install
+
+# Start Vite dev server
+npm run dev
+
+# Build for production
+npm run build
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+---
+
+## Production Deployment (Vercel)
+
+The frontend is deployed to Vercel with edge caching and SPA client-side routing.
+Configured via `vercel.json`:
+- Framework: `vite`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Dynamic API Base URL via `VITE_API_URL` environment variable.
