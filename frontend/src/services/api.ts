@@ -9,7 +9,9 @@ import {
   SettingsStatus
 } from '../types';
 
-const BASE_URL = '/api';
+// Production & Development API Base URL configuration
+const API_ORIGIN = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const BASE_URL = `${API_ORIGIN}/api`;
 
 export const api = {
   // Health

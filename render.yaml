@@ -1,0 +1,31 @@
+services:
+  # FIREWATCH Full-Stack Unified Service (Docker)
+  # Builds both React frontend and FastAPI backend into a single production container
+  - type: web
+    name: firewatch
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: FIRMS_MAP_KEY
+        sync: false
+    healthCheckPath: /api/health
+
+  # Dedicated FastAPI Backend Service (Python Native)
+  - type: web
+    name: firewatch-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    region: oregon
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: FIRMS_MAP_KEY
+        sync: false
+    healthCheckPath: /api/health
